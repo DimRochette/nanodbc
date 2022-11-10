@@ -1,4 +1,4 @@
-#include "test_case_fixture.h"
+﻿#include "test_case_fixture.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -855,6 +855,32 @@ TEST_CASE_METHOD(mssql_fixture, "test_string_with_text", "[mssql][string][text]"
     nanodbc::string select;
     results.get_ref(0, select);
     REQUIRE(select.size() == 15000);
+}
+
+TEST_CASE_METHOD(mssql_fixture, "test_string_with_utf8_nvarchar", "[mssql][string]")
+{
+    nanodbc::connection connection = connect();
+    drop_table(connection, NANODBC_TEXT("test_string_with_utf8_nvarchar"));
+    execute(
+        connection, NANODBC_TEXT("create table test_string_with_utf8_nvarchar (s nvarchar(max));"));
+    execute(
+        connection,
+        NANODBC_TEXT("insert into test_string_with_utf8_nvarchar(s) ")
+            NANODBC_TEXT("values (CONVERT(nvarchar, 0x3DD800DE, 0)),(N'😀')"));
+
+    nanodbc::result results =
+        execute(connection, NANODBC_TEXT("select s from test_string_with_utf8_nvarchar;"));
+
+    nanodbc::string nvarchar_native;
+    nanodbc::string nvarchar_encoded;
+
+    REQUIRE(results.next());
+    results.get_ref(0, nvarchar_native);
+
+    REQUIRE(results.next());
+    results.get_ref(0, nvarchar_encoded);
+    REQUIRE((*(reinterpret_cast<unsigned int*>(&nvarchar_native[0]))) == 0x80989ff0);
+    REQUIRE(nvarchar_native == nvarchar_encoded);
 }
 
 TEST_CASE_METHOD(mssql_fixture, "test_string_vector", "[mssql][string]")
