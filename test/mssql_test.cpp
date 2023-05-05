@@ -1,10 +1,14 @@
-﻿#include "test_case_fixture.h"
+#include "test_case_fixture.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <iostream>
+#include <locale>
+#include <codecvt>
 
 #ifdef _MSC_VER
 #include <atlsafe.h>
@@ -899,6 +903,15 @@ TEST_CASE_METHOD(mssql_fixture, "test_string_with_text", "[mssql][string][text]"
     results.get_ref(0, select);
     REQUIRE(select.size() == 15000);
 }
+auto tofile(std::ofstream& outfile, std::string name,std::string& from)
+{
+    outfile << name << "(" << from.size() << ")["<<sizeof(from[0])<<"]\n";
+    for (const auto& c : from)
+    {
+        outfile << std::hex << std::setw(2) << std::setfill('0') << (0xff & static_cast<int>(c));
+    }
+    outfile << "\n value:\n" << from.c_str() << "\n";
+}
 
 TEST_CASE_METHOD(mssql_fixture, "test_string_with_utf8_nvarchar", "[mssql][string]")
 {
@@ -922,6 +935,19 @@ TEST_CASE_METHOD(mssql_fixture, "test_string_with_utf8_nvarchar", "[mssql][strin
 
     REQUIRE(results.next());
     results.get_ref(0, nvarchar_encoded);
+
+    std::ofstream outfile("./outbuffer.txt");
+
+    tofile(outfile, "nvarchar_native", nvarchar_native);
+    tofile(outfile, "nvarchar_encoded", nvarchar_encoded);
+
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char> converter;
+    //std::wstring_convert<std::codecvt_utf8_utf16<char16_t>> converter;
+    std::wstring wstr = converter.from_bytes(nvarchar_encoded.c_str());
+    std::string nvarchar_encoded2(reinterpret_cast<char*>(wstr.data()), wstr.length() * 2);
+    tofile(outfile, "nvarchar_encoded one decode", nvarchar_encoded2);
+    outfile.close();
+
     REQUIRE((*(reinterpret_cast<unsigned int*>(&nvarchar_native[0]))) == 0x80989ff0);
     REQUIRE(nvarchar_native == nvarchar_encoded);
 }
